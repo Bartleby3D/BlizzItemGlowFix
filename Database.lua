@@ -41,7 +41,6 @@ NS.DB.globalDefaults = {
     questsEnabled = true,
     professionJournalEnabled = true,
     craftingOrdersEnabled = true,
-
     borderSectionEnabled = true,
     ilvlSectionEnabled = true,
     iconsSectionEnabled = true,
@@ -67,7 +66,7 @@ NS.DB.globalDefaults = {
     },
 
     ilvlFontSize = 14,
-    ilvlOffsetX = 0,
+    ilvlOffsetX = 1,
     ilvlOffsetY = -10,
     ilvlUseQualityColor = true,
     ilvlMinQuality = 2,
@@ -90,10 +89,10 @@ NS.DB.globalDefaults = {
     },
     borderMinQuality = 0,
 
-    junkIconEnabled = true,
-    junkIconSize = 15,
-    junkIconOffsetX = -9,
-    junkIconOffsetY = 9,
+    junkIconEnabled = false,
+    junkIconSize = 14,
+    junkIconOffsetX = -10,
+    junkIconOffsetY = 10,
 
     upgradeIconEnabled = true,
     upgradeIconSize = 15,
@@ -105,15 +104,15 @@ NS.DB.globalDefaults = {
     transmogIconOffsetX = 0,
     transmogIconOffsetY = 10,
 
-    questIconEnabled = false,
-    questIconSize = 15,
-    questIconOffsetX = 11,
-    questIconOffsetY = 10,
+    questIconEnabled = true,
+    questIconSize = 22,
+    questIconOffsetX = -9,
+    questIconOffsetY = 0,
 
     enchantIconEnabled = true,
     enchantIconSize = 10,
     enchantIconOffsetX = 10.5,
-    enchantIconOffsetY = -10.5,
+    enchantIconOffsetY = 10.5,
     enchantIconCharacterInspectOnly = true,
 }
 
