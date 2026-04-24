@@ -54,7 +54,7 @@ The settings panel contains sections for:
 
 BlizzItemGlowFix only changes visual presentation on Blizzard item buttons. It does not modify items, inventory data, rewards, or gameplay logic.
 
-## License and Copyright
+## 📜 License and Copyright
 
 This project is distributed under the All Rights Reserved license.
 
