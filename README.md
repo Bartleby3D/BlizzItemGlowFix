@@ -60,7 +60,7 @@ This project is distributed under the All Rights Reserved license.
 
 You may use this addon for personal purposes. Any full or partial unauthorized copying of the code, its modification for public use, or republication on third-party resources is prohibited.
 
-## Credits and Resources
+## ❤️ Credits and Resources
 
 The project uses the following third-party developments:
 
@@ -68,6 +68,7 @@ Libraries: LibStub, CallbackHandler-1.0, LibDataBroker-1.1, LibDBIcon-1.0, LibRa
 
 Fonts: Roboto Condensed (Licensed under SIL Open Font License 1.1).
 
----
+\---
 
 Developed by an enthusiast with an emphasis on clean code and stability.
+
