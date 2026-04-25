@@ -105,8 +105,8 @@ NS.DB.globalDefaults = {
     transmogIconOffsetY = 10,
 
     questIconEnabled = true,
-    questIconSize = 22,
-    questIconOffsetX = -9,
+    questIconSize = 30,
+    questIconOffsetX = -9.5,
     questIconOffsetY = 0,
 
     enchantIconEnabled = true,

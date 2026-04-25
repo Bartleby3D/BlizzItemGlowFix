@@ -207,6 +207,51 @@ local function SetBlizzardJunkIconSuppressed(button, suppressed)
 end
 
 
+local function GetBlizzardQuestIcon(button)
+    if not button then
+        return nil
+    end
+
+    if button.IconQuestTexture then
+        return button.IconQuestTexture
+    end
+
+    local name = button.GetName and button:GetName() or nil
+    if type(name) == "string" and name ~= "" then
+        return _G[name .. "IconQuestTexture"]
+    end
+
+    return nil
+end
+
+local function SetBlizzardQuestIconSuppressed(button, suppressed)
+    local texture = GetBlizzardQuestIcon(button)
+    if not texture then
+        return
+    end
+
+    if suppressed then
+        if texture.__BIGFOriginalAlpha == nil and texture.GetAlpha then
+            texture.__BIGFOriginalAlpha = texture:GetAlpha()
+        end
+        if texture.SetAlpha then
+            texture:SetAlpha(0)
+        end
+        if texture.Hide then
+            texture:Hide()
+        end
+        texture.__BIGFQuestIconSuppressed = true
+        return
+    end
+
+    if texture.__BIGFQuestIconSuppressed then
+        if texture.SetAlpha then
+            texture:SetAlpha(texture.__BIGFOriginalAlpha or 1)
+        end
+        texture.__BIGFQuestIconSuppressed = nil
+    end
+end
+
 local function GetEquipLocFromItem(itemInfoValue, itemID)
     itemID = tonumber(itemID)
     if itemID and itemID > 0 then
@@ -608,6 +653,7 @@ function IconRenderer.Hide(button)
     HideTexture(state.questIcon)
     HideTexture(state.enchantIcon)
     SetBlizzardJunkIconSuppressed(button, false)
+    SetBlizzardQuestIconSuppressed(button, false)
 end
 
 function IconRenderer.Apply(button, snapshot, config, context)
@@ -626,6 +672,7 @@ function IconRenderer.Apply(button, snapshot, config, context)
     local state = stateByButton[button]
 
     SetBlizzardJunkIconSuppressed(button, showJunk == true)
+    SetBlizzardQuestIconSuppressed(button, showQuest == true)
 
     if showJunk then
         local texture = EnsureIconTexture(button, "junkIcon", "Front-Gold-Icon", 1)

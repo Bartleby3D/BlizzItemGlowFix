@@ -2,7 +2,7 @@
 ## Title: BlizzItemGlowFix
 ## Notes: Adds configurable item quality borders, item levels, stack counts, and status icons to Blizzard item buttons.
 ## Author: Archer#2848
-## Version: 1.0.0
+## Version: 1.0.1
 ## SavedVariables: BlizzItemGlowFixDB
 ## IconTexture: Interface\AddOns\BlizzItemGlowFix\Media\BIGFIcon.tga
 ## X-Category: Bags & Inventory
