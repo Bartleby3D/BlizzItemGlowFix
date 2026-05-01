@@ -202,6 +202,9 @@ local function SetBlizzardJunkIconSuppressed(button, suppressed)
         if texture.SetAlpha then
             texture:SetAlpha(texture.__BIGFOriginalAlpha or 1)
         end
+        if texture.Show then
+            texture:Show()
+        end
         texture.__BIGFJunkIconSuppressed = nil
     end
 end
@@ -247,6 +250,9 @@ local function SetBlizzardQuestIconSuppressed(button, suppressed)
     if texture.__BIGFQuestIconSuppressed then
         if texture.SetAlpha then
             texture:SetAlpha(texture.__BIGFOriginalAlpha or 1)
+        end
+        if texture.Show then
+            texture:Show()
         end
         texture.__BIGFQuestIconSuppressed = nil
     end

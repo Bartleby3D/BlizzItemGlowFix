@@ -183,6 +183,30 @@ local function ResolveItemLevel(itemInfoValue, itemKey)
     return nil
 end
 
+local function ResolveCurrentItemLevelFromLocation(itemLocation)
+    if not itemLocation then
+        return nil
+    end
+
+    if itemLocation.IsValid and not itemLocation:IsValid() then
+        return nil
+    end
+
+    if C_Item and C_Item.DoesItemExist and not C_Item.DoesItemExist(itemLocation) then
+        return nil
+    end
+
+    if C_Item and type(C_Item.GetCurrentItemLevel) == "function" then
+        local itemLevel = C_Item.GetCurrentItemLevel(itemLocation)
+        if type(itemLevel) == "number" and itemLevel > 0 then
+            return itemLevel
+        end
+    end
+
+    return nil
+end
+
+
 local function BuildSnapshotFromInfo(slotKey, itemID, itemLink, quality, stackCount, hasNoValue, isQuestItem, wantItemLevel, onResolved, callbackKey, requestFactory, bagID, slotID)
     local cached = slotSnapshotCache[slotKey]
     if cached
@@ -322,7 +346,7 @@ function Store.GetBagSlotSnapshot(bagID, slotID, wantItemLevel, onResolved, call
     local hasNoValue = info.hasNoValue == true
     local isQuestItem = GetQuestState(bagID, slotID)
 
-    return BuildSnapshotFromInfo(
+    local snapshot = BuildSnapshotFromInfo(
         slotKey,
         itemID,
         itemLink,
@@ -339,6 +363,16 @@ function Store.GetBagSlotSnapshot(bagID, slotID, wantItemLevel, onResolved, call
         bagID,
         slotID
     )
+
+    if snapshot and wantItemLevel and snapshot.isEquippable and ItemLocation and ItemLocation.CreateFromBagAndSlot then
+        local itemLocation = ItemLocation:CreateFromBagAndSlot(bagID, slotID)
+        local currentItemLevel = ResolveCurrentItemLevelFromLocation(itemLocation)
+        if currentItemLevel then
+            snapshot.itemLevel = currentItemLevel
+        end
+    end
+
+    return snapshot
 end
 
 function Store.GetGuildBankSlotSnapshot(tabID, slotID, wantItemLevel, onResolved, callbackKey)
@@ -443,6 +477,14 @@ function Store.GetInventorySlotSnapshot(unit, slotID, wantItemLevel, onResolved,
     if snapshot then
         snapshot.unit = unit
         snapshot.isInventorySlot = true
+
+        if wantItemLevel and snapshot.isEquippable and unit == "player" and ItemLocation and ItemLocation.CreateFromEquipmentSlot then
+            local itemLocation = ItemLocation:CreateFromEquipmentSlot(slotID)
+            local currentItemLevel = ResolveCurrentItemLevelFromLocation(itemLocation)
+            if currentItemLevel then
+                snapshot.itemLevel = currentItemLevel
+            end
+        end
     end
 
     return snapshot

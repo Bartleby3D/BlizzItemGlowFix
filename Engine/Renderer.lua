@@ -90,6 +90,46 @@ local function StoreSnapshotState(state, snapshot, configVersion, dynamicVersion
     state.pending = snapshot.pending == true
 end
 
+local function ShouldDisplayItemLevel(snapshot)
+    if not snapshot or not snapshot.isEquippable then
+        return false
+    end
+
+    if type(GetItemInfoInstant) ~= "function" then
+        return snapshot.isEquippable == true
+    end
+
+    local itemRef = snapshot.itemLink or snapshot.itemID
+    if not itemRef then
+        return false
+    end
+
+    local _, _, _, equipLoc, _, itemClassID, itemSubClassID = GetItemInfoInstant(itemRef)
+    if type(itemClassID) ~= "number" then
+        return snapshot.isEquippable == true
+    end
+
+    local weaponClassID = Enum and Enum.ItemClass and Enum.ItemClass.Weapon or nil
+    local armorClassID = Enum and Enum.ItemClass and Enum.ItemClass.Armor or nil
+    local cosmeticArmorSubclassID = Enum and Enum.ItemArmorSubclass and Enum.ItemArmorSubclass.Cosmetic or nil
+
+    if weaponClassID and armorClassID then
+        if itemClassID ~= weaponClassID and itemClassID ~= armorClassID then
+            return false
+        end
+    end
+
+    if equipLoc == "INVTYPE_BODY" or equipLoc == "INVTYPE_TABARD" or equipLoc == "INVTYPE_BAG" or equipLoc == "INVTYPE_COSMETIC" then
+        return false
+    end
+
+    if armorClassID and cosmeticArmorSubclassID and itemClassID == armorClassID and itemSubClassID == cosmeticArmorSubclassID then
+        return false
+    end
+
+    return true
+end
+
 local function FormatItemLevel(snapshot, config)
     if not config.ilvlSectionEnabled or not snapshot or not snapshot.itemLevel then
         return nil
@@ -99,7 +139,7 @@ local function FormatItemLevel(snapshot, config)
         return nil
     end
 
-    if not snapshot.isEquippable then
+    if not ShouldDisplayItemLevel(snapshot) then
         return nil
     end
 
@@ -279,7 +319,7 @@ function Renderer.UpdateInventoryButton(button, unit, slotID, config, surfaceKey
     local dynamicVersion = Renderer._dynamicVersion or 0
     local wantItemLevel = config.ilvlSectionEnabled == true or (config.iconsSectionEnabled == true and config.upgradeIconEnabled == true)
     local snapshot = NS.ItemDataStore.GetInventorySlotSnapshot(unit, slotID, wantItemLevel, function()
-        Renderer.UpdateInventoryButton(button, unit, slotID, config, surfaceKey)
+        Renderer.UpdateInventoryButton(button, unit, slotID, nil, surfaceKey)
     end, button)
 
     ApplySnapshot(button, snapshot, config, configVersion, dynamicVersion, surfaceKey or "character")
