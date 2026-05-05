@@ -249,6 +249,8 @@ function Renderer.ClearButton(button, reason)
         state.isEquippable = nil
         state.itemLevel = nil
         state.pending = nil
+        state.inventoryConfig = nil
+        state.inventorySurfaceKey = nil
     end
 
     if NS.BorderRenderer then
@@ -299,7 +301,7 @@ function Renderer.UpdateBagButton(button, bagID, slotID, config, surfaceKey, res
     ApplySnapshot(button, snapshot, config, configVersion, dynamicVersion, surfaceKey or "bags")
 end
 
-function Renderer.UpdateInventoryButton(button, unit, slotID, config, surfaceKey)
+function Renderer.UpdateInventoryButton(button, unit, slotID, config, surfaceKey, resolver)
     if not button or type(unit) ~= "string" or unit == "" or slotID == nil then
         Renderer.ClearButton(button, "invalidInput")
         return
@@ -315,11 +317,31 @@ function Renderer.UpdateInventoryButton(button, unit, slotID, config, surfaceKey
         NS.AssetWarmup.PrepareButtonNow(button)
     end
 
+    local state = GetButtonState(button)
+    state.inventoryConfig = config
+    state.inventorySurfaceKey = surfaceKey or "character"
+
+    local callbackResolver = type(resolver) == "function" and resolver or function(currentButton)
+        return unit, currentButton and currentButton.GetID and currentButton:GetID() or slotID
+    end
+
     local configVersion = NS.RuntimeConfig and NS.RuntimeConfig.GetVersion and NS.RuntimeConfig.GetVersion() or 0
     local dynamicVersion = Renderer._dynamicVersion or 0
     local wantItemLevel = config.ilvlSectionEnabled == true or (config.iconsSectionEnabled == true and config.upgradeIconEnabled == true)
     local snapshot = NS.ItemDataStore.GetInventorySlotSnapshot(unit, slotID, wantItemLevel, function()
-        Renderer.UpdateInventoryButton(button, unit, slotID, nil, surfaceKey)
+        local currentUnit, currentSlot = callbackResolver(button)
+        if type(currentUnit) ~= "string" or currentUnit == "" or currentSlot == nil then
+            Renderer.ClearButton(button, "callbackInvalid")
+            return
+        end
+
+        local currentState = GetButtonState(button)
+        if not currentState.inventoryConfig then
+            Renderer.ClearButton(button, "callbackMissingConfig")
+            return
+        end
+
+        Renderer.UpdateInventoryButton(button, currentUnit, currentSlot, currentState.inventoryConfig, currentState.inventorySurfaceKey or surfaceKey, resolver)
     end, button)
 
     ApplySnapshot(button, snapshot, config, configVersion, dynamicVersion, surfaceKey or "character")

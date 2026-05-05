@@ -296,6 +296,35 @@ local function GetEquippedEquipLoc(slotID)
     return GetEquipLocFromItem(itemLink)
 end
 
+local DUAL_WIELD_SPELL_ID = 674
+local TITANS_GRIP_SPELL_ID = 46917
+local TITANS_GRIP_AURA_SPELL_ID = 49152
+local TITANS_GRIP_FOR_SHIELD_SPELL_ID = 50483
+
+local function PlayerCanDualWieldWeapons()
+    if type(CanDualWield) == "function" then
+        return CanDualWield() == true
+    end
+
+    if type(IsPlayerSpell) ~= "function" then
+        return false
+    end
+
+    return IsPlayerSpell(DUAL_WIELD_SPELL_ID) == true
+        or IsPlayerSpell(TITANS_GRIP_SPELL_ID) == true
+        or IsPlayerSpell(TITANS_GRIP_AURA_SPELL_ID) == true
+end
+
+local function PlayerAllowsOffHandWithTwoHandWeapon()
+    if type(IsPlayerSpell) ~= "function" then
+        return false
+    end
+
+    return IsPlayerSpell(TITANS_GRIP_SPELL_ID) == true
+        or IsPlayerSpell(TITANS_GRIP_AURA_SPELL_ID) == true
+        or IsPlayerSpell(TITANS_GRIP_FOR_SHIELD_SPELL_ID) == true
+end
+
 local function GetWeaponComparisonSlots(equipLoc)
     local slotList = EQUIP_LOC_TO_SLOTS[equipLoc]
     if type(slotList) ~= "table" then
@@ -303,27 +332,27 @@ local function GetWeaponComparisonSlots(equipLoc)
     end
 
     local mainHandIsTwoHand = IsTwoHandEquipLoc(GetEquippedEquipLoc(SLOT_MAIN_HAND))
-    local offHandIsTwoHand = IsTwoHandEquipLoc(GetEquippedEquipLoc(SLOT_OFF_HAND))
+    local canDualWieldWeapons = PlayerCanDualWieldWeapons()
+    local allowsOffHandWithTwoHandWeapon = PlayerAllowsOffHandWithTwoHandWeapon()
 
     if equipLoc == "INVTYPE_WEAPON" then
-        if mainHandIsTwoHand then
+        if mainHandIsTwoHand and not allowsOffHandWithTwoHandWeapon then
             return { SLOT_MAIN_HAND }
         end
-        return slotList
+        if canDualWieldWeapons then
+            return slotList
+        end
+        return { SLOT_MAIN_HAND }
     end
 
     if equipLoc == "INVTYPE_WEAPONOFFHAND" or equipLoc == "INVTYPE_HOLDABLE" or equipLoc == "INVTYPE_SHIELD" then
-        if mainHandIsTwoHand then
+        if mainHandIsTwoHand and not allowsOffHandWithTwoHandWeapon then
             return nil
         end
         return slotList
     end
 
     if equipLoc == "INVTYPE_2HWEAPON" or equipLoc == "INVTYPE_WEAPONMAINHAND" or equipLoc == "INVTYPE_RANGED" or equipLoc == "INVTYPE_RANGEDRIGHT" or equipLoc == "INVTYPE_THROWN" then
-        return { SLOT_MAIN_HAND }
-    end
-
-    if offHandIsTwoHand then
         return { SLOT_MAIN_HAND }
     end
 

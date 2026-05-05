@@ -104,7 +104,10 @@ local function UpdateButton(button, config)
         return
     end
 
-    NS.Renderer.UpdateInventoryButton(button, "player", slotID, config, "character")
+    NS.Renderer.UpdateInventoryButton(button, "player", slotID, config, "character", function(currentButton)
+        local currentSlotID = currentButton and currentButton.GetID and currentButton:GetID() or slotID
+        return "player", currentSlotID
+    end)
 end
 
 function Surface.RefreshVisible()
