@@ -310,6 +310,11 @@ local function UpdateElement(element, config)
             entry.isQuestItem,
             wantItemLevel,
             function()
+                if NS.ItemLevelResolver and NS.ItemLevelResolver.ResolveFromLootSlot then
+                    return NS.ItemLevelResolver.ResolveFromLootSlot(entry.slotIndex)
+                end
+            end,
+            function()
                 local currentElement = GetTrackedElement(button)
                 if not currentElement then
                     ClearButton(button, "lootCallbackMissing")

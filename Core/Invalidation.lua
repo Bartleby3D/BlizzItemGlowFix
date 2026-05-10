@@ -21,9 +21,17 @@ function Invalidation.OnConfigChanged()
 end
 
 function Invalidation.OnDynamicChanged(reason)
+    if NS.ItemDataStore and NS.ItemDataStore.InvalidateDynamicState then
+        NS.ItemDataStore.InvalidateDynamicState()
+    end
+
     if NS.Renderer and NS.Renderer.InvalidateDynamicState then
         NS.Renderer.InvalidateDynamicState()
     end
 
     Invalidation.RefreshVisible(reason or "dynamic")
+end
+
+function Invalidation.GetDynamicVersion()
+    return NS.Renderer and NS.Renderer._dynamicVersion or 0
 end

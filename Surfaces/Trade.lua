@@ -346,6 +346,11 @@ local function UpdateButton(button, entry, config)
             entry.isQuestItem,
             wantItemLevel,
             function()
+                if NS.ItemLevelResolver and NS.ItemLevelResolver.ResolveFromTradeEntry then
+                    return NS.ItemLevelResolver.ResolveFromTradeEntry(entry.side, entry.index)
+                end
+            end,
+            function()
                 if not IsFrameShown(GetTradeFrame()) then
                     ClearButton(button, "tradeCallbackHidden")
                     return

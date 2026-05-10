@@ -612,6 +612,11 @@ local function UpdateButton(button, entry, owner, config)
             entry.isQuestItem,
             wantItemLevel,
             function()
+                if NS.ItemLevelResolver and NS.ItemLevelResolver.ResolveFromHyperlink then
+                    return NS.ItemLevelResolver.ResolveFromHyperlink(entry.itemLink)
+                end
+            end,
+            function()
                 if not IsFrameShown(GetCraftingPage()) then
                     ClearButton(button, "professionJournalCallbackHidden")
                     return

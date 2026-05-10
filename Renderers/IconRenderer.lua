@@ -70,6 +70,8 @@ local ENCHANTABLE_EQUIP_LOCS = {
     INVTYPE_2HWEAPON = true,
     INVTYPE_WEAPONMAINHAND = true,
     INVTYPE_WEAPONOFFHAND = true,
+    INVTYPE_RANGED = true,
+    INVTYPE_RANGEDRIGHT = true,
 }
 
 local function GetState(button)
@@ -283,6 +285,24 @@ local function IsTwoHandEquipLoc(equipLoc)
     return equipLoc == "INVTYPE_2HWEAPON"
 end
 
+local function IsRangedEquipLoc(equipLoc)
+    return equipLoc == "INVTYPE_RANGED"
+        or equipLoc == "INVTYPE_RANGEDRIGHT"
+        or equipLoc == "INVTYPE_THROWN"
+end
+
+local function MainHandBlocksOffHand(mainHandEquipLoc, allowsOffHandWithTwoHandWeapon)
+    if IsRangedEquipLoc(mainHandEquipLoc) then
+        return true
+    end
+
+    if IsTwoHandEquipLoc(mainHandEquipLoc) and not allowsOffHandWithTwoHandWeapon then
+        return true
+    end
+
+    return false
+end
+
 local function GetEquippedEquipLoc(slotID)
     if type(GetInventoryItemLink) ~= "function" then
         return nil
@@ -331,12 +351,13 @@ local function GetWeaponComparisonSlots(equipLoc)
         return nil
     end
 
-    local mainHandIsTwoHand = IsTwoHandEquipLoc(GetEquippedEquipLoc(SLOT_MAIN_HAND))
-    local canDualWieldWeapons = PlayerCanDualWieldWeapons()
     local allowsOffHandWithTwoHandWeapon = PlayerAllowsOffHandWithTwoHandWeapon()
+    local mainHandEquipLoc = GetEquippedEquipLoc(SLOT_MAIN_HAND)
+    local offHandBlockedByMainHand = MainHandBlocksOffHand(mainHandEquipLoc, allowsOffHandWithTwoHandWeapon)
+    local canDualWieldWeapons = PlayerCanDualWieldWeapons()
 
     if equipLoc == "INVTYPE_WEAPON" then
-        if mainHandIsTwoHand and not allowsOffHandWithTwoHandWeapon then
+        if offHandBlockedByMainHand then
             return { SLOT_MAIN_HAND }
         end
         if canDualWieldWeapons then
@@ -346,7 +367,7 @@ local function GetWeaponComparisonSlots(equipLoc)
     end
 
     if equipLoc == "INVTYPE_WEAPONOFFHAND" or equipLoc == "INVTYPE_HOLDABLE" or equipLoc == "INVTYPE_SHIELD" then
-        if mainHandIsTwoHand and not allowsOffHandWithTwoHandWeapon then
+        if offHandBlockedByMainHand then
             return nil
         end
         return slotList
@@ -385,28 +406,14 @@ local function GetEquippedItemLevel(slotID)
         return cachedLevel or nil
     end
 
-    if ItemLocation and C_Item and C_Item.GetCurrentItemLevel then
-        local itemLocation = ItemLocation:CreateFromEquipmentSlot(slotID)
-        if itemLocation and itemLocation.IsValid and itemLocation:IsValid() then
-            if not C_Item.DoesItemExist or C_Item.DoesItemExist(itemLocation) then
-                local itemLevel = NS.TryCall("IconRenderer.GetEquippedItemLevel", C_Item.GetCurrentItemLevel, itemLocation)
-                if type(itemLevel) == "number" and itemLevel > 0 then
-                    equippedItemLevelCache[slotID] = itemLevel
-                    return itemLevel
-                end
-            end
-        end
+    local itemLevel = nil
+    if NS.ItemLevelResolver and NS.ItemLevelResolver.ResolveFromPlayerEquipmentSlot then
+        itemLevel = NS.ItemLevelResolver.ResolveFromPlayerEquipmentSlot(slotID)
     end
 
-    if type(GetInventoryItemLink) == "function" and type(GetDetailedItemLevelInfo) == "function" then
-        local itemLink = GetInventoryItemLink("player", slotID)
-        if type(itemLink) == "string" and itemLink ~= "" then
-            local itemLevel = GetDetailedItemLevelInfo(itemLink)
-            if type(itemLevel) == "number" and itemLevel > 0 then
-                equippedItemLevelCache[slotID] = itemLevel
-                return itemLevel
-            end
-        end
+    if type(itemLevel) == "number" and itemLevel > 0 then
+        equippedItemLevelCache[slotID] = itemLevel
+        return itemLevel
     end
 
     equippedItemLevelCache[slotID] = false
@@ -421,14 +428,6 @@ local function GetItemLevel(snapshot)
     local itemLevel = tonumber(snapshot.itemLevel)
     if itemLevel and itemLevel > 0 then
         return itemLevel
-    end
-
-    local itemInfoValue = GetItemInfoValue(snapshot)
-    if itemInfoValue and C_Item and C_Item.GetDetailedItemLevelInfo then
-        itemLevel = C_Item.GetDetailedItemLevelInfo(itemInfoValue)
-        if type(itemLevel) == "number" and itemLevel > 0 then
-            return itemLevel
-        end
     end
 
     return nil
@@ -660,7 +659,7 @@ function IconRenderer.PrepareButton(button)
 end
 
 function IconRenderer.InvalidateCaches(reason)
-    if reason == "PLAYER_EQUIPMENT_CHANGED" or reason == "TRANSMOG_COLLECTION_UPDATED" or reason == "PLAYER_ENTERING_WORLD" then
+    if reason == "PLAYER_EQUIPMENT_CHANGED" or reason == "TRANSMOG_COLLECTION_UPDATED" or reason == "PLAYER_ENTERING_WORLD" or reason == "PLAYER_LEVEL_UP" then
         wipe(equippedItemLevelCache)
     end
 
@@ -748,9 +747,10 @@ local driver = CreateFrame("Frame")
 driver:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 driver:RegisterEvent("TRANSMOG_COLLECTION_UPDATED")
 driver:RegisterEvent("PLAYER_ENTERING_WORLD")
+driver:RegisterEvent("PLAYER_LEVEL_UP")
 driver:SetScript("OnEvent", function(_, event)
     IconRenderer.InvalidateCaches(event)
-    if NS.ItemDataStore and NS.ItemDataStore.PreloadEquippedItems and (event == "PLAYER_EQUIPMENT_CHANGED" or event == "PLAYER_ENTERING_WORLD") then
+    if NS.ItemDataStore and NS.ItemDataStore.PreloadEquippedItems and (event == "PLAYER_EQUIPMENT_CHANGED" or event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_LEVEL_UP") then
         NS.ItemDataStore.PreloadEquippedItems()
     end
     if NS.Invalidation and NS.Invalidation.OnDynamicChanged then

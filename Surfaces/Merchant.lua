@@ -347,6 +347,11 @@ local function UpdateButton(button, entry, config)
         entry.isQuestItem == true,
         wantItemLevel,
         function()
+            if NS.ItemLevelResolver and NS.ItemLevelResolver.ResolveFromMerchantEntry then
+                return NS.ItemLevelResolver.ResolveFromMerchantEntry(entry.mode, entry.index)
+            end
+        end,
+        function()
             local currentEntry = ResolveCurrentEntry(button)
             if not currentEntry then
                 ClearButton(button, "merchantCallbackInvalid")

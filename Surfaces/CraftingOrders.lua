@@ -463,6 +463,11 @@ local function UpdateButton(button, entry, slot, config)
             entry.isQuestItem,
             wantItemLevel,
             function()
+                if NS.ItemLevelResolver and NS.ItemLevelResolver.ResolveFromHyperlink then
+                    return NS.ItemLevelResolver.ResolveFromHyperlink(entry.itemLink)
+                end
+            end,
+            function()
                 if not IsFrameShown(GetOrdersForm()) then
                     ClearButton(button, "craftingOrdersCallbackHidden")
                     return

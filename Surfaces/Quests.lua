@@ -1011,6 +1011,16 @@ local function UpdateButton(button, rewardsFrame, config, entry)
             entry.isQuestItem,
             wantItemLevel,
             function()
+                if NS.ItemLevelResolver and NS.ItemLevelResolver.ResolveFromQuestReward then
+                    return NS.ItemLevelResolver.ResolveFromQuestReward(
+                        IsQuestLogContext(rewardsFrame),
+                        entry.rewardType,
+                        entry.rewardIndex,
+                        GetActiveQuestID(rewardsFrame)
+                    )
+                end
+            end,
+            function()
                 local currentFrame = GetOwningRewardsFrame(button)
                 if not currentFrame or not IsFrameShown(currentFrame) then
                     ClearButton(button, "questCallbackMissing")

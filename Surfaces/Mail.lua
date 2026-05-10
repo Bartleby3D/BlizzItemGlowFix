@@ -380,6 +380,23 @@ local function UpdateButton(button, info, config)
         entry.isQuestItem,
         wantItemLevel,
         function()
+            if not NS.ItemLevelResolver then
+                return nil
+            end
+
+            if entry.kind == "send" then
+                return NS.ItemLevelResolver.ResolveFromSendMail(entry.index)
+            end
+
+            if entry.kind == "open" then
+                return NS.ItemLevelResolver.ResolveFromInboxItem(entry.mailID, entry.index)
+            end
+
+            if entry.kind == "inbox" then
+                return NS.ItemLevelResolver.ResolveFromInboxItem(entry.inboxIndex, 1)
+            end
+        end,
+        function()
             local currentEntry = ResolveCurrentEntry(button)
             if not currentEntry then
                 ClearButton(button, "mailCallbackEmpty")

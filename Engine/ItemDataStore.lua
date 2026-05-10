@@ -4,6 +4,7 @@ NS.ItemDataStore = NS.ItemDataStore or {}
 local Store = NS.ItemDataStore
 
 local pendingBySlot = {}
+local tooltipSlotsByDataInstanceID = {}
 local slotSnapshotCache = {}
 local derivedByItemKey = {}
 
@@ -43,21 +44,29 @@ local function GetDerivedEntry(itemKey)
     return entry
 end
 
+local function EnsurePendingEntry(slotKey)
+    local pending = pendingBySlot[slotKey]
+    if pending then
+        return pending
+    end
+
+    pending = {
+        waiting = false,
+        callbacks = {},
+        list = {},
+        requestFactory = nil,
+        tooltipDataInstanceIDs = nil,
+    }
+    pendingBySlot[slotKey] = pending
+    return pending
+end
+
 local function RegisterPendingCallback(slotKey, callbackKey, onResolved, requestFactory)
     if type(onResolved) ~= "function" then
         return nil
     end
 
-    local pending = pendingBySlot[slotKey]
-    if not pending then
-        pending = {
-            waiting = false,
-            callbacks = {},
-            list = {},
-            requestFactory = nil,
-        }
-        pendingBySlot[slotKey] = pending
-    end
+    local pending = EnsurePendingEntry(slotKey)
 
     if type(requestFactory) == "function" then
         pending.requestFactory = requestFactory
@@ -72,8 +81,78 @@ local function RegisterPendingCallback(slotKey, callbackKey, onResolved, request
     return pending
 end
 
+local function UnregisterTooltipDataPending(slotKey, pending)
+    pending = pending or pendingBySlot[slotKey]
+    if not pending or type(pending.tooltipDataInstanceIDs) ~= "table" then
+        return
+    end
+
+    for dataInstanceID in pairs(pending.tooltipDataInstanceIDs) do
+        local slots = tooltipSlotsByDataInstanceID[dataInstanceID]
+        if slots then
+            slots[slotKey] = nil
+            if not next(slots) then
+                tooltipSlotsByDataInstanceID[dataInstanceID] = nil
+                if NS.TooltipDataAwaiter and NS.TooltipDataAwaiter.Untrack then
+                    NS.TooltipDataAwaiter.Untrack(dataInstanceID)
+                end
+            end
+        end
+    end
+
+    pending.tooltipDataInstanceIDs = nil
+end
+
+local function RegisterTooltipDataPending(slotKey, dataInstanceID, callbackKey, onResolved, requestFactory)
+    dataInstanceID = tonumber(dataInstanceID)
+    if not dataInstanceID or dataInstanceID <= 0 then
+        return nil
+    end
+
+    local pending = RegisterPendingCallback(slotKey, callbackKey, onResolved, requestFactory)
+    if not pending then
+        return nil
+    end
+
+    if type(pending.tooltipDataInstanceIDs) ~= "table" then
+        pending.tooltipDataInstanceIDs = {}
+    end
+
+    if not pending.tooltipDataInstanceIDs[dataInstanceID] then
+        pending.tooltipDataInstanceIDs[dataInstanceID] = true
+
+        local slots = tooltipSlotsByDataInstanceID[dataInstanceID]
+        if not slots then
+            slots = {}
+            tooltipSlotsByDataInstanceID[dataInstanceID] = slots
+        end
+        slots[slotKey] = true
+
+        if NS.TooltipDataAwaiter and NS.TooltipDataAwaiter.Track then
+            NS.TooltipDataAwaiter.Track(dataInstanceID)
+        end
+    end
+
+    return pending
+end
+
+local function ClearSlotState(slotKey)
+    if type(slotKey) ~= "string" or slotKey == "" then
+        return
+    end
+
+    local pending = pendingBySlot[slotKey]
+    if pending then
+        UnregisterTooltipDataPending(slotKey, pending)
+    end
+
+    pendingBySlot[slotKey] = nil
+    slotSnapshotCache[slotKey] = nil
+end
+
 local function FirePendingCallbacks(slotKey)
     local pending = pendingBySlot[slotKey]
+    UnregisterTooltipDataPending(slotKey, pending)
     pendingBySlot[slotKey] = nil
     slotSnapshotCache[slotKey] = nil
 
@@ -162,52 +241,10 @@ local function ResolveQuality(itemInfoValue, quality)
     return nil
 end
 
-local function ResolveItemLevel(itemInfoValue, itemKey)
-    local entry = GetDerivedEntry(itemKey)
-    if entry and type(entry.itemLevel) == "number" and entry.itemLevel > 0 then
-        return entry.itemLevel
-    end
-
-    if not (itemInfoValue and C_Item and C_Item.GetDetailedItemLevelInfo) then
-        return nil
-    end
-
-    local itemLevel = C_Item.GetDetailedItemLevelInfo(itemInfoValue)
-    if type(itemLevel) == "number" and itemLevel > 0 then
-        if entry then
-            entry.itemLevel = itemLevel
-        end
-        return itemLevel
-    end
-
-    return nil
-end
-
-local function ResolveCurrentItemLevelFromLocation(itemLocation)
-    if not itemLocation then
-        return nil
-    end
-
-    if itemLocation.IsValid and not itemLocation:IsValid() then
-        return nil
-    end
-
-    if C_Item and C_Item.DoesItemExist and not C_Item.DoesItemExist(itemLocation) then
-        return nil
-    end
-
-    if C_Item and type(C_Item.GetCurrentItemLevel) == "function" then
-        local itemLevel = C_Item.GetCurrentItemLevel(itemLocation)
-        if type(itemLevel) == "number" and itemLevel > 0 then
-            return itemLevel
-        end
-    end
-
-    return nil
-end
 
 
-local function BuildSnapshotFromInfo(slotKey, itemID, itemLink, quality, stackCount, hasNoValue, isQuestItem, wantItemLevel, onResolved, callbackKey, requestFactory, bagID, slotID)
+
+local function BuildSnapshotFromInfo(slotKey, itemID, itemLink, quality, stackCount, hasNoValue, isQuestItem, wantItemLevel, itemLevelResolver, onResolved, callbackKey, requestFactory, bagID, slotID)
     local cached = slotSnapshotCache[slotKey]
     if cached
         and cached.wantItemLevel == (wantItemLevel == true)
@@ -251,14 +288,13 @@ local function BuildSnapshotFromInfo(slotKey, itemID, itemLink, quality, stackCo
         needsAsync = true
     end
 
-    if wantItemLevel and isEquippable then
-        local itemLevel = ResolveItemLevel(itemInfoValue, itemKey)
-        if itemLevel then
+    if wantItemLevel and isEquippable and type(itemLevelResolver) == "function" then
+        local itemLevel, tooltipDataInstanceID = itemLevelResolver(snapshot)
+        if type(itemLevel) == "number" and itemLevel > 0 then
             snapshot.itemLevel = itemLevel
-        elseif onResolved then
-            RegisterPendingCallback(slotKey, callbackKey, onResolved, requestFactory)
+        elseif tooltipDataInstanceID and onResolved then
+            RegisterTooltipDataPending(slotKey, tooltipDataInstanceID, callbackKey, onResolved, requestFactory)
             snapshot.pending = true
-            needsAsync = true
         end
     end
 
@@ -322,6 +358,37 @@ function Store.PreloadEquippedItems()
     end
 end
 
+function Store.InvalidateDynamicState()
+    for slotKey in pairs(pendingBySlot) do
+        ClearSlotState(slotKey)
+    end
+
+    wipe(slotSnapshotCache)
+end
+
+function Store.NotifyTooltipDataUpdated(dataInstanceID)
+    dataInstanceID = tonumber(dataInstanceID)
+    if not dataInstanceID or dataInstanceID <= 0 then
+        return
+    end
+
+    local slots = tooltipSlotsByDataInstanceID[dataInstanceID]
+    if not slots then
+        return
+    end
+
+    tooltipSlotsByDataInstanceID[dataInstanceID] = nil
+
+    local slotKeys = {}
+    for slotKey in pairs(slots) do
+        slotKeys[#slotKeys + 1] = slotKey
+    end
+
+    for index = 1, #slotKeys do
+        FirePendingCallbacks(slotKeys[index])
+    end
+end
+
 function Store.GetBagSlotSnapshot(bagID, slotID, wantItemLevel, onResolved, callbackKey)
     if bagID == nil or slotID == nil then
         return nil
@@ -334,8 +401,7 @@ function Store.GetBagSlotSnapshot(bagID, slotID, wantItemLevel, onResolved, call
     local info = C_Container.GetContainerItemInfo(bagID, slotID)
     local slotKey = BuildSlotKey("bag", bagID, slotID)
     if not info then
-        slotSnapshotCache[slotKey] = nil
-        pendingBySlot[slotKey] = nil
+        ClearSlotState(slotKey)
         return nil
     end
 
@@ -355,6 +421,11 @@ function Store.GetBagSlotSnapshot(bagID, slotID, wantItemLevel, onResolved, call
         hasNoValue,
         isQuestItem,
         wantItemLevel,
+        function()
+            if NS.ItemLevelResolver and NS.ItemLevelResolver.ResolveFromBagSlot then
+                return NS.ItemLevelResolver.ResolveFromBagSlot(bagID, slotID)
+            end
+        end,
         onResolved,
         callbackKey,
         function()
@@ -363,14 +434,6 @@ function Store.GetBagSlotSnapshot(bagID, slotID, wantItemLevel, onResolved, call
         bagID,
         slotID
     )
-
-    if snapshot and wantItemLevel and snapshot.isEquippable and ItemLocation and ItemLocation.CreateFromBagAndSlot then
-        local itemLocation = ItemLocation:CreateFromBagAndSlot(bagID, slotID)
-        local currentItemLevel = ResolveCurrentItemLevelFromLocation(itemLocation)
-        if currentItemLevel then
-            snapshot.itemLevel = currentItemLevel
-        end
-    end
 
     return snapshot
 end
@@ -389,8 +452,7 @@ function Store.GetGuildBankSlotSnapshot(tabID, slotID, wantItemLevel, onResolved
     local itemLink = GetGuildBankItemLink(tabID, slotID)
     local slotKey = BuildSlotKey("guildbank", tabID, slotID)
     if not itemLink then
-        slotSnapshotCache[slotKey] = nil
-        pendingBySlot[slotKey] = nil
+        ClearSlotState(slotKey)
         return nil
     end
 
@@ -406,6 +468,11 @@ function Store.GetGuildBankSlotSnapshot(tabID, slotID, wantItemLevel, onResolved
         false,
         false,
         wantItemLevel,
+        function()
+            if NS.ItemLevelResolver and NS.ItemLevelResolver.ResolveFromGuildBankSlot then
+                return NS.ItemLevelResolver.ResolveFromGuildBankSlot(tabID, slotID)
+            end
+        end,
         onResolved,
         callbackKey,
         function()
@@ -430,8 +497,7 @@ function Store.GetInventorySlotSnapshot(unit, slotID, wantItemLevel, onResolved,
     local slotKey = BuildSlotKey("inventory", unit, slotID)
 
     if not itemLink and not itemID then
-        slotSnapshotCache[slotKey] = nil
-        pendingBySlot[slotKey] = nil
+        ClearSlotState(slotKey)
         return nil
     end
 
@@ -467,6 +533,11 @@ function Store.GetInventorySlotSnapshot(unit, slotID, wantItemLevel, onResolved,
         false,
         false,
         wantItemLevel,
+        function()
+            if NS.ItemLevelResolver and NS.ItemLevelResolver.ResolveFromInventorySlot then
+                return NS.ItemLevelResolver.ResolveFromInventorySlot(unit, slotID)
+            end
+        end,
         onResolved,
         callbackKey,
         requestFactory,
@@ -477,27 +548,18 @@ function Store.GetInventorySlotSnapshot(unit, slotID, wantItemLevel, onResolved,
     if snapshot then
         snapshot.unit = unit
         snapshot.isInventorySlot = true
-
-        if wantItemLevel and snapshot.isEquippable and unit == "player" and ItemLocation and ItemLocation.CreateFromEquipmentSlot then
-            local itemLocation = ItemLocation:CreateFromEquipmentSlot(slotID)
-            local currentItemLevel = ResolveCurrentItemLevelFromLocation(itemLocation)
-            if currentItemLevel then
-                snapshot.itemLevel = currentItemLevel
-            end
-        end
     end
 
     return snapshot
 end
 
-function Store.GetExternalItemSnapshot(slotKey, itemLink, itemID, quality, stackCount, hasNoValue, isQuestItem, wantItemLevel, onResolved, callbackKey)
+function Store.GetExternalItemSnapshot(slotKey, itemLink, itemID, quality, stackCount, hasNoValue, isQuestItem, wantItemLevel, itemLevelResolver, onResolved, callbackKey)
     if type(slotKey) ~= "string" or slotKey == "" then
         slotKey = BuildSlotKey("external", itemID or 0, itemLink or "")
     end
 
     if not itemLink and not itemID then
-        slotSnapshotCache[slotKey] = nil
-        pendingBySlot[slotKey] = nil
+        ClearSlotState(slotKey)
         return nil
     end
 
@@ -523,6 +585,7 @@ function Store.GetExternalItemSnapshot(slotKey, itemLink, itemID, quality, stack
         hasNoValue == true,
         isQuestItem == true,
         wantItemLevel,
+        itemLevelResolver,
         onResolved,
         callbackKey,
         requestFactory,
