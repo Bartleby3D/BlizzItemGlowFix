@@ -167,8 +167,11 @@ local function EnsureAverageItemLevelText()
         return nil
     end
 
-    local text = parent:CreateFontString(nil, "OVERLAY")
-    text:SetDrawLayer("OVERLAY", 7)
+    local text = NS.Fonts and NS.Fonts.CreateManagedFontString and NS.Fonts.CreateManagedFontString(parent, "OVERLAY", 7)
+        or parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    if type(text.SetDrawLayer) == "function" then
+        text:SetDrawLayer("OVERLAY", 7)
+    end
     text:SetJustifyH("CENTER")
     text:SetJustifyV("MIDDLE")
     if text.SetWordWrap then
@@ -228,7 +231,31 @@ local function ApplyAverageItemLevelStyle(text, config, quality)
         return
     end
 
-    text:SetFont(config.fontPath or "Fonts\\FRIZQT__.TTF", math.max(6, config.ilvlFontSize or 14), config.textFlags or "OUTLINE")
+    if NS.Fonts and NS.Fonts.ApplyStyleToFontString then
+        NS.Fonts.ApplyStyleToFontString(text, math.max(6, config.ilvlFontSize or 14), config.textFlags)
+    else
+        local textStyle = config.textFlags or "OUTLINE"
+        local fontFlags = textStyle
+        if textStyle == "SHADOW" or textStyle == "NONE" then
+            fontFlags = ""
+        end
+        text:SetFont(config.fontPath or "Fonts\\FRIZQT__.TTF", math.max(6, config.ilvlFontSize or 14), fontFlags)
+        if textStyle == "SHADOW" then
+            if type(text.SetShadowColor) == "function" then
+                text:SetShadowColor(0, 0, 0, 1)
+            end
+            if type(text.SetShadowOffset) == "function" then
+                text:SetShadowOffset(1, -1)
+            end
+        else
+            if type(text.SetShadowColor) == "function" then
+                text:SetShadowColor(0, 0, 0, 0)
+            end
+            if type(text.SetShadowOffset) == "function" then
+                text:SetShadowOffset(0, 0)
+            end
+        end
+    end
 
     if config.ilvlUseQualityColor and quality ~= nil and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[quality] then
         local color = ITEM_QUALITY_COLORS[quality]

@@ -203,13 +203,19 @@ local function EnsureItemLevelFont(button)
         return state.itemLevelFont
     end
 
-    local fontString = button:CreateFontString(nil, "OVERLAY")
-    fontString:SetDrawLayer("OVERLAY", 7)
+    local fontString = NS.Fonts and NS.Fonts.CreateManagedFontString and NS.Fonts.CreateManagedFontString(button, "OVERLAY", 7)
+        or button:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    if type(fontString.SetDrawLayer) == "function" then
+        fontString:SetDrawLayer("OVERLAY", 7)
+    end
     state.itemLevelFont = fontString
     return fontString
 end
 
 local function NormalizeTextStyle(style)
+    if NS.Fonts and NS.Fonts.NormalizeTextStyle then
+        return NS.Fonts.NormalizeTextStyle(style)
+    end
     if style == "NONE" or style == "SHADOW" or style == "OUTLINE" or style == "THICKOUTLINE" then
         return style
     end
@@ -217,6 +223,10 @@ local function NormalizeTextStyle(style)
 end
 
 local function ApplyTextStyle(fontString, style)
+    if NS.Fonts and NS.Fonts.ApplyTextStyle then
+        return NS.Fonts.ApplyTextStyle(fontString, style)
+    end
+
     if not fontString then
         return ""
     end
@@ -224,20 +234,20 @@ local function ApplyTextStyle(fontString, style)
     style = NormalizeTextStyle(style)
 
     if style == "SHADOW" then
-        if type(fontString.SetShadowOffset) == "function" then
-            fontString:SetShadowOffset(1, -1)
-        end
         if type(fontString.SetShadowColor) == "function" then
             fontString:SetShadowColor(0, 0, 0, 1)
+        end
+        if type(fontString.SetShadowOffset) == "function" then
+            fontString:SetShadowOffset(1, -1)
         end
         return ""
     end
 
-    if type(fontString.SetShadowOffset) == "function" then
-        fontString:SetShadowOffset(0, 0)
-    end
     if type(fontString.SetShadowColor) == "function" then
         fontString:SetShadowColor(0, 0, 0, 0)
+    end
+    if type(fontString.SetShadowOffset) == "function" then
+        fontString:SetShadowOffset(0, 0)
     end
 
     if style == "OUTLINE" then
@@ -254,14 +264,40 @@ local function ApplyFont(fontString, fontPath, size, style)
         return
     end
 
-    local fontFlags = ApplyTextStyle(fontString, style)
-
-    if NS.Fonts and NS.Fonts.ApplyToFontString then
-        NS.Fonts.ApplyToFontString(fontString, size, fontFlags)
+    if NS.Fonts and NS.Fonts.ApplyStyleToFontString then
+        NS.Fonts.ApplyStyleToFontString(fontString, size, style)
         return
     end
 
+    local normalizedStyle = NormalizeTextStyle(style)
+    local fontFlags = ""
+    if normalizedStyle == "OUTLINE" then
+        fontFlags = "OUTLINE"
+    elseif normalizedStyle == "THICKOUTLINE" then
+        fontFlags = "THICKOUTLINE"
+    end
     fontString:SetFont(fontPath, size, fontFlags)
+    ApplyTextStyle(fontString, normalizedStyle)
+end
+
+local function PrimeNativeCountFontString(fontString)
+    if not fontString then
+        return
+    end
+
+    if NS.Fonts and NS.Fonts.ApplyDefaultFontObject then
+        NS.Fonts.ApplyDefaultFontObject(fontString)
+        return
+    end
+
+    if type(fontString.SetFontObject) ~= "function" then
+        return
+    end
+
+    local fontObject = _G and _G.GameFontNormal or GameFontNormal
+    if fontObject then
+        pcall(fontString.SetFontObject, fontString, fontObject)
+    end
 end
 
 local function RestoreCountText(button)
@@ -363,6 +399,7 @@ local function ApplyCountText(button, snapshot)
         baseX = 0
     end
 
+    PrimeNativeCountFontString(countText)
     ApplyFont(countText, snapshot.fontPath, math.max(6, (snapshot.stackFontSize or 12) * targetScale), snapshot.textFlags)
 
     local color = snapshot.stackTextColor or {}

@@ -163,6 +163,92 @@ function Fonts.GetSelectedFontPath()
     return Fonts.GetFontPath(Fonts.GetSelectedFontKey())
 end
 
+
+local function NormalizeTextStyle(style)
+    if style == "NONE" or style == "SHADOW" or style == "OUTLINE" or style == "THICKOUTLINE" then
+        return style
+    end
+    return "OUTLINE"
+end
+
+function Fonts.NormalizeTextStyle(style)
+    return NormalizeTextStyle(style)
+end
+
+function Fonts.GetTextStyleFontFlags(style)
+    style = NormalizeTextStyle(style)
+    if style == "OUTLINE" then
+        return "OUTLINE"
+    elseif style == "THICKOUTLINE" then
+        return "THICKOUTLINE"
+    end
+    return ""
+end
+
+function Fonts.ApplyTextStyle(fontString, style)
+    if not fontString then
+        return ""
+    end
+
+    style = NormalizeTextStyle(style)
+
+    if style == "SHADOW" then
+        if type(fontString.SetShadowColor) == "function" then
+            fontString:SetShadowColor(0, 0, 0, 1)
+        end
+        if type(fontString.SetShadowOffset) == "function" then
+            fontString:SetShadowOffset(1, -1)
+        end
+        return ""
+    end
+
+    if type(fontString.SetShadowColor) == "function" then
+        fontString:SetShadowColor(0, 0, 0, 0)
+    end
+    if type(fontString.SetShadowOffset) == "function" then
+        fontString:SetShadowOffset(0, 0)
+    end
+
+    return Fonts.GetTextStyleFontFlags(style)
+end
+
+function Fonts.ApplyStyleToFontString(fontString, size, textStyle, fontKey)
+    if not fontString then
+        return false
+    end
+
+    local fontFlags = Fonts.GetTextStyleFontFlags(textStyle)
+    local ok = Fonts.ApplyToFontString(fontString, size, fontFlags, fontKey)
+    Fonts.ApplyTextStyle(fontString, textStyle)
+    return ok
+end
+
+function Fonts.ApplyDefaultFontObject(fontString)
+    if not fontString or type(fontString.SetFontObject) ~= "function" then
+        return false
+    end
+
+    local fontObject = _G and _G.GameFontNormal or GameFontNormal
+    if not fontObject then
+        return false
+    end
+
+    local ok = pcall(fontString.SetFontObject, fontString, fontObject)
+    return ok == true
+end
+
+function Fonts.CreateManagedFontString(parent, layer, subLayer)
+    if not parent or type(parent.CreateFontString) ~= "function" then
+        return nil
+    end
+
+    local fontString = parent:CreateFontString(nil, layer or "OVERLAY", "GameFontNormal")
+    if fontString and subLayer and type(fontString.SetDrawLayer) == "function" then
+        fontString:SetDrawLayer(layer or "OVERLAY", subLayer)
+    end
+    return fontString
+end
+
 function Fonts.ApplyToFontString(fontString, size, flags, fontKey)
     if not fontString or type(fontString.SetFont) ~= "function" then
         return false

@@ -6,7 +6,7 @@ local Warmup = NS.AssetWarmup
 local hiddenFrame = CreateFrame("Frame")
 hiddenFrame:Hide()
 local hiddenTextures = {}
-local hiddenFontString = hiddenFrame:CreateFontString(nil, "OVERLAY")
+local hiddenFontString = hiddenFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 
 local queuedButtons = setmetatable({}, { __mode = "k" })
 local queueList = {}
@@ -15,23 +15,33 @@ local driver = CreateFrame("Frame")
 driver:Hide()
 
 local function ResolveWarmupFontFlags(style)
-    if style == "OUTLINE" then
-        hiddenFontString:SetShadowOffset(0, 0)
-        hiddenFontString:SetShadowColor(0, 0, 0, 0)
-        return "OUTLINE"
-    elseif style == "THICKOUTLINE" then
-        hiddenFontString:SetShadowOffset(0, 0)
-        hiddenFontString:SetShadowColor(0, 0, 0, 0)
-        return "THICKOUTLINE"
-    elseif style == "SHADOW" then
-        hiddenFontString:SetShadowOffset(1, -1)
-        hiddenFontString:SetShadowColor(0, 0, 0, 1)
-        return ""
+    if NS.Fonts and NS.Fonts.GetTextStyleFontFlags then
+        return NS.Fonts.GetTextStyleFontFlags(style)
     end
 
-    hiddenFontString:SetShadowOffset(0, 0)
-    hiddenFontString:SetShadowColor(0, 0, 0, 0)
+    if style == "OUTLINE" then
+        return "OUTLINE"
+    elseif style == "THICKOUTLINE" then
+        return "THICKOUTLINE"
+    end
+
     return ""
+end
+
+local function ApplyWarmupTextStyle(style)
+    if NS.Fonts and NS.Fonts.ApplyTextStyle then
+        NS.Fonts.ApplyTextStyle(hiddenFontString, style)
+        return
+    end
+
+    if style == "SHADOW" then
+        hiddenFontString:SetShadowColor(0, 0, 0, 1)
+        hiddenFontString:SetShadowOffset(1, -1)
+        return
+    end
+
+    hiddenFontString:SetShadowColor(0, 0, 0, 0)
+    hiddenFontString:SetShadowOffset(0, 0)
 end
 
 local function PrepareButtonNow(button)
@@ -115,6 +125,7 @@ function Warmup.WarmupAssets()
 
     local fontFlags = ResolveWarmupFontFlags(snapshot.textFlags)
     hiddenFontString:SetFont(snapshot.fontPath or "Fonts\\FRIZQT__.TTF", snapshot.ilvlFontSize or 14, fontFlags)
+    ApplyWarmupTextStyle(snapshot.textFlags)
     hiddenFontString:SetText("999")
 
     local style = snapshot.borderStyleData
